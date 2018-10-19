@@ -63,7 +63,7 @@ class EarleyParser:
     # This is the second operator in Earley (out of three), see J&M p.444
     # It puts a new completed entry in the NEXT column of the chart
     def scanner(self, state, i_col):
-        new_entry = Entry(state.rule_index, state.start_index, 1)
+        new_entry = Entry(state.rule_index, state.start_index, state.period_index+1)
         self.enqueue(new_entry, i_col +1, "SCANNER")
 
 
