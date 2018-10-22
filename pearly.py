@@ -5,7 +5,7 @@ Course: Natural Language Processing
 Instructor: Jason Eisner
 Assignment: HW4 -- Parsing
 '''
-# Basic implementation of (non-probabilistic) Earley parser
+# Probabilistic Earley parser
 
 import sys
 import numpy
@@ -36,7 +36,7 @@ class Entry:
         self.rule_index = rule_index
         self.start_index = start_index
         self.period_index = period_index
-        self.back = []
+
 
 
 # This class represents the entire parser
@@ -72,7 +72,7 @@ class EarleyParser:
     # This is the second operator in Earley (out of three), see J&M p.444
     # It puts a new completed entry in the NEXT column of the chart
     def scanner(self, state, i_col):
-        new_entry = Entry(state.rule_index, state.start_index, state.period_index+1)
+        new_entry = Entry(state.rule_index, state.start_index, 1)
         self.enqueue(new_entry, i_col +1, "SCANNER")
 
 
@@ -89,9 +89,6 @@ class EarleyParser:
                 if possible_match == match_seeking:  # if this is true, we have a "customer" to "attach"
                     new_entry = Entry(entry2.rule_index, entry2.start_index,
                                       entry2.period_index + 1)
-                    new_entry.back.append(state)
-                    new_entry.back.extend(entry2.back)
-
                     self.enqueue(new_entry, i_col, "COMPLETER")
 
 
@@ -104,21 +101,12 @@ class EarleyParser:
             self.chart[column].append(state)
             self.states_added[column][tuple_version_of_state] = True
 
-            # print(which_function + " resulted in adding the following at Col = " +
-            #         str(column) + " Row = " + str(len(self.chart[column])))
-            # print(str(state.start_index), end="  ")
-            # self.grammar_rules[state.rule_index].print(state.period_index)
-            # print(" (period_index " + str(state.period_index) + ")")
+            print(which_function + " resulted in adding the following at Col = " +
+                    str(column) + " Row = " + str(len(self.chart[column])))
+            print(str(state.start_index), end="  ")
+            self.grammar_rules[state.rule_index].print(state.period_index)
+            print(" (period_index " + str(state.period_index) + ")")
 
-    def dfs(self, state):
-        children = state.back
-        while children:
-            node = children.pop()
-            print("("+self.grammar_rules[node.rule_index].lhs,end=" ")
-            if not node.back:
-                print(self.grammar_rules[node.rule_index].rhs[0],end="")
-            self.dfs(node)
-        print(")",end=" ")
 
     def parse(self, sentence_filename):
         sen_file = open(sentence_filename)  # open .SEN file
@@ -154,18 +142,6 @@ class EarleyParser:
                             self.attach(state, i_col)
 
                         i_row += 1
-            
-            # print whether sentence was in grammar and parse tree
-            valid_sentence = False
-            for state in self.chart[-1]:
-                rule = self.grammar_rules[state.rule_index]
-                if rule.lhs == "ROOT":
-                    valid_sentence = True
-                    self.dfs(state)
-                    break
-            
-            if not valid_sentence:
-                print("Invalid sentence.")
 
 
 # This main function coordinates all the code to run
