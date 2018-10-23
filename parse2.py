@@ -90,7 +90,7 @@ class EarleyParser:
 
     # This is the first operator in Earley (out of three), see J&M p.444
     # It expands a possible operator into multiple
-    def predictor(self, state, i_col, next_cat):
+    def predictor(self, state, i_col, next_cat, left_corners):
         # The following lines implement the "Batch Duplicate check" suggested in section E.1 of HW4
         tuple_for_batch = (next_cat, i_col, "Batch Duplicate")
         if tuple_for_batch in self.states_added:
@@ -99,9 +99,10 @@ class EarleyParser:
 
         # The following code performs the actual meat of predictor
         for i_rule in range(0, len(self.grammar_rules)):
-            if self.grammar_rules[i_rule].lhs == next_cat:
-                new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
-                self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
+            if self.grammar_rules[i_rule].lhs in left_corners:
+                if self.grammar_rules[i_rule].lhs == next_cat:
+                    new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
+                    self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
 
 
     # This is the second operator in Earley (out of three), see J&M p.444
@@ -185,6 +186,21 @@ class EarleyParser:
             if self.grammar_rules[i].lhs == "ROOT":
                 self.enqueue(Entry(i, 0, 0, self.grammar_rules[i].weight), 0, "DUMMY START STATE")
 
+    # This function builds a dictionary (i.e. hash table) of all possible left corners
+    def get_left_corners(self, word):
+        d = {}
+        d[word] = True # the word is in its own left corner
+        old_count = 0 # tracks old size of d
+        new_count = 1 # tracks new size of d (which is 1, since we just added the word itself)
+        while old_count < new_count: # keep going as long as the prior run increased d's size
+            for rule in self.grammar_rules: # iterating without index is faster here, and we don't need the index
+                if rule.lhs not in d and rule.rhs[0] in d:
+                    d[rule.lhs] = True # then add the left-hand side to the hash
+            old_count = new_count
+            new_count = len(d)
+
+        return d
+
 
     # This function actually parses a particular sentence
     def parse(self, sentence):
@@ -195,6 +211,8 @@ class EarleyParser:
         self.add_ROOT_expansions() # add all ROOT rules to the start of the chart
 
         for i_col in range(0, len(words)+1):  # iterates over columns in Earley chart
+            if i_col < len(words):
+                left_corners = self.get_left_corners(words[i_col]) # used for left-corner filter
 
             i_row = 0  # this index into chart[i] keeps track of which item remains to predict or scan
             while i_row < len(self.chart[i_col]):  # chart[i] can have additional items added during this loop
@@ -208,12 +226,12 @@ class EarleyParser:
                 incomplete = period_index < len_rhs # an entry is "complete" if all rules are left of the period
 
                 if incomplete:
-                    next_cat = self.grammar_rules[state.rule_index].rhs[period_index]
-
-                    if i_col < len(words) and next_cat == words[i_col]:
-                        self.scanner(state, i_col)
-                    else:
-                        self.predictor(state, i_col, next_cat)
+                    if i_col < len(words): # predictor and scanner never run on the very last column
+                        next_cat = self.grammar_rules[state.rule_index].rhs[period_index]
+                        if next_cat == words[i_col]:
+                            self.scanner(state, i_col)
+                        else:
+                            self.predictor(state, i_col, next_cat, left_corners)
                 else:  # if we are here, we have a completed item and we need to run ATTACH (a/k/a COMPLETE)
                     self.attach(state, i_col)
 
