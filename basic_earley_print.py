@@ -8,6 +8,7 @@ import math
 class GrRule:
     def __init__(self, prob, lhs, rhs):
         self.prob = prob
+        self.weight = -math.log(self.prob, 2)
         self.lhs = lhs
         self.rhs = rhs
         self.log_prob = math.log(self.prob, 2)
@@ -30,17 +31,16 @@ class GrRule:
 
 # This class represents a single entry (i.e., the rule, the start index, and the period index)
 class Entry:
-    def __init__(self, rule_index, start_index, period_index, backpointers_to_copy = None):
+    def __init__(self, rule_index, start_index, period_index, weight, backpointers_to_copy = None):
         self.rule_index = rule_index
         self.start_index = start_index
         self.period_index = period_index
+        self.weight = weight
         self.backpointers = []  # list of list of *references* to entries upon which this is built
         self.debug_info = None
         if backpointers_to_copy is None:
-            self.backpointers = []
             self.backpointers.append([]) # backpointers is a list of lists of references pointing back to entries
         else: # copies over all backpointers
-            self.backpointers = []
             for list_backpointers in backpointers_to_copy:
                 new_backpointers = list_backpointers.copy()
                 self.backpointers.append(new_backpointers)
@@ -73,14 +73,14 @@ class EarleyParser:
     def predictor(self, state, i_col, next_cat):
         for i_rule in range(0, len(self.grammar_rules)):
             if self.grammar_rules[i_rule].lhs == next_cat:
-                new_entry = Entry(i_rule, i_col, 0)
+                new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[state.rule_index].weight)
                 self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
 
 
     # This is the second operator in Earley (out of three), see J&M p.444
     # It puts a new completed entry in the NEXT column of the chart
     def scanner(self, state, i_col):
-        new_entry = Entry(state.rule_index, state.start_index, state.period_index+1, state.backpointers)
+        new_entry = Entry(state.rule_index, state.start_index, state.period_index+1, self.grammar_rules[state.rule_index].weight, state.backpointers)
         for backpointer_list in new_entry.backpointers:
             backpointer_list.append(None) # keep an empty entry for non-terminals, which is what scanner() handles
         self.enqueue(new_entry, i_col +1, "SCANNER")
@@ -97,8 +97,9 @@ class EarleyParser:
                 # then this may be seeking a completion
                 possible_match = self.grammar_rules[entry2.rule_index].rhs[entry2.period_index]
                 if possible_match == match_seeking:  # if this is true, we have a "customer" to "attach"
+                    weight = entry2.weight + state.weight
                     new_entry = Entry(entry2.rule_index, entry2.start_index,
-                                      entry2.period_index + 1, entry2.backpointers)
+                                      entry2.period_index + 1, weight, entry2.backpointers)
                     for backpointer_list in new_entry.backpointers:
                         backpointer_list.append(state) # adds backpointer
 
@@ -115,7 +116,28 @@ class EarleyParser:
             existing_state = self.states_added[column][tuple_version_of_state]
             if len(state.backpointers) > 1:
                 print("ERROR - incorrect assumption about backpointers being added")
-            existing_state.backpointers.append(state.backpointers[0])
+            
+            if existing_state.period_index == len(self.grammar_rules[existing_state.rule_index].rhs):
+                existing_weight = float('inf')
+                min_index = 0
+                for index, backpointer_list in enumerate(existing_state.backpointers):
+                    bp_weight = existing_state.weight + \
+                        sum([bp.weight for bp in backpointer_list])
+                    if bp_weight < existing_weight:
+                        existing_weight = bp_weight
+                        min_index = index
+                new_weight = state.weight + \
+                    sum([bp.weight for bp in state.backpointers[0]])
+                
+                #print("existing",self.grammar_rules[existing_state.backpointers[min_index][1].rule_index].to_string(), existing_state.backpointers[min_index][1].weight)
+                #print("new",self.grammar_rules[state.backpointers[0][1].rule_index].to_string(), state.backpointers[0][1].weight)
+                if new_weight > existing_weight:
+                    existing_state.backpointers = [state.backpointers[0]]
+                else:
+                    existing_state.backpointers = [existing_state.backpointers[min_index]]
+                
+            # existing_state.backpointers.append(state.backpointers[0])
+            
             if self.print_build_info:
                 print("ADDED BACKPOINTER TO " + existing_state.debug_info)
                 for i in range(0, len(existing_state.backpointers)):
@@ -151,7 +173,7 @@ class EarleyParser:
     def add_ROOT_expansions(self):
         for i in range(0, len(self.grammar_rules)):
             if self.grammar_rules[i].lhs == "ROOT":
-                self.enqueue(Entry(i, 0, 0), 0, "DUMMY START STATE")
+                self.enqueue(Entry(i, 0, 0, 0), 0, "DUMMY START STATE")
 
 
     def parse(self, sentence):
@@ -183,6 +205,7 @@ class EarleyParser:
                         self.predictor(state, i_col, next_cat)
                 else:  # if we are here, we have a completed item and we need to run ATTACH (a/k/a COMPLETE)
                     self.attach(state, i_col)
+                    
 
                 i_row += 1
 
@@ -228,8 +251,9 @@ class EarleyParser:
                     entry.period_index == len(self.grammar_rules[entry.rule_index].rhs):
                 count_ROOT += 1
                 trees = self.print_subtree(entry)
-                for s in trees:
-                    print(s)
+                weights = [(entry.backpointers[0][0].backpointers[0][0].weight, entry.backpointers[0][0].backpointers[0][1].weight)]
+                for s,w in zip(trees,weights):
+                    print(w,s)
 #        print("\ncount_ROOT = " + str(count_ROOT))
 
 
