@@ -162,7 +162,7 @@ class EarleyParser:
             self.chart[column].append(state)
             self.states_added[tuple_version_of_state] = state
 
-            if False: # Turn this to True to turn on debugging information
+            if True: # Turn this to True to turn on debugging information
                 s = str(state.start_index) + " "
                 s += self.grammar_rules[state.rule_index].to_string(state.period_index)
                 s += " (weight = " + str(state.weight) + ")"
@@ -231,7 +231,7 @@ class EarleyParser:
         while len(list_entries) > 0:
             sub_entry = list_entries.pop()
             if sub_entry.vert_backpointer is None:
-                print(gr_rule.rhs[index_rhs], end=" ")
+                print(gr_rule.rhs[index_rhs], end="")
             else:
                 self.print_entry(sub_entry.vert_backpointer)
             index_rhs += 1
