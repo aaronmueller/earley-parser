@@ -131,7 +131,7 @@ class EarleyParser:
                 
                 #print("existing",self.grammar_rules[existing_state.backpointers[min_index][1].rule_index].to_string(), existing_state.backpointers[min_index][1].weight)
                 #print("new",self.grammar_rules[state.backpointers[0][1].rule_index].to_string(), state.backpointers[0][1].weight)
-                if new_weight > existing_weight:
+                if new_weight < existing_weight:
                     existing_state.backpointers = [state.backpointers[0]]
                 else:
                     existing_state.backpointers = [existing_state.backpointers[min_index]]
@@ -251,7 +251,7 @@ class EarleyParser:
                     entry.period_index == len(self.grammar_rules[entry.rule_index].rhs):
                 count_ROOT += 1
                 trees = self.print_subtree(entry)
-                weights = [(entry.backpointers[0][0].backpointers[0][0].weight, entry.backpointers[0][0].backpointers[0][1].weight)]
+                weights = [sum([bp.weight for bp in bp_list]) for bp_list in entry.backpointers]
                 for s,w in zip(trees,weights):
                     print(w,s)
 #        print("\ncount_ROOT = " + str(count_ROOT))
