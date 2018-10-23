@@ -42,17 +42,21 @@ class Entry:
         self.start_index = start_index
         self.period_index = period_index
         self.weight = weight
+        '''
         # Below is the backpointer to the entry holding the prior state of the same rule (hence, horizontal)
         # Example 1: if the entry is  S -> NP VP .  then this will point to the S -> NP . VP entry
         # Example 2: if the entry is  S -> NP . VP  then this will be None
         # Example 3: if the entry is  S -> . NP VP  then this will be None
         # Example 4: if the entry is  A -> B and C . then this will point to the A -> B and . C entry
+        '''
         self.horiz_backpointer = None
+        '''
         # Below is the backpointer to the entry for the rule just to the LEFT of the period (hence, vertical)
         # Example 1: if the entry is  S -> NP VP .  then this will point to the entry for the VP
         # Example 2: if the entry is  S -> NP . VP  then this will point to the entry for the NP
         # Example 3: if the entry is  S -> . NP VP  then this will be None
         # Example 4: if the entry is  A -> B and . C . then this will be None (since "and" is a terminal)
+        '''
         self.vert_backpointer = None
 
         # Setting this to true means to ignore the entry in the future.
@@ -172,7 +176,7 @@ class EarleyParser:
     def add_ROOT_expansions(self):
         for i in range(0, len(self.grammar_rules)):
             if self.grammar_rules[i].lhs == "ROOT":
-                self.enqueue(Entry(i, 0, 0, 0), 0, "DUMMY START STATE")
+                self.enqueue(Entry(i, 0, 0, self.grammar_rules[i].weight), 0, "DUMMY START STATE")
 
 
     # This function actually parses a particular sentence
@@ -239,17 +243,22 @@ class EarleyParser:
     def print(self):
         # first, find all instances of ROOT in the final column
         count_completions = 0
+        min_entry = None
+        min_weight = float('inf')
         for entry in self.chart[len(self.chart)-1]:
             if self.grammar_rules[entry.rule_index].lhs == "ROOT" and \
                     entry.start_index == 0 and \
                     entry.period_index == len(self.grammar_rules[entry.rule_index].rhs) and \
                     not entry.is_null:
-                self.print_entry(entry)
-                count_completions += 1
-                print("\n" + str(entry.weight))  # print the log-2 weight, as required for HW4
+                if entry.weight < min_weight:
+                    min_weight = entry.weight
+                    min_entry = entry
+        self.print_entry(min_entry)
+        count_completions += 1
+        print("\n" + str(min_entry.weight))  # print the log-2 weight, as required for HW4
         if count_completions == 0:
             print("NONE")
-        if count_completions > 1:
+        elif count_completions > 1:
             print("ERROR: Multiple trees printed out; should have printed only one")
 
 
