@@ -152,7 +152,7 @@ class EarleyParser:
         icol2 = state.start_index
         for irow2 in range(0, len(self.chart[icol2])):
             entry2 = self.chart[icol2][irow2]
-            if entry2.period_index < len(self.grammar_rules[entry2.rule_index].rhs):
+            if not entry2.is_null and entry2.period_index < len(self.grammar_rules[entry2.rule_index].rhs):
                 # then this may be seeking a completion
                 possible_match = self.grammar_rules[entry2.rule_index].rhs[entry2.period_index]
                 if possible_match == match_seeking:  # if this is true, we potentially have a "customer" to "attach"
@@ -254,23 +254,25 @@ class EarleyParser:
             i_row = 0  # this index into chart[i] keeps track of which item remains to predict or scan
             while i_row < len(self.chart[i_col]):  # chart[i] can have additional items added during this loop
                 state = self.chart[i_col][i_row]
-                len_rhs = len(self.grammar_rules[state.rule_index].rhs)
-                period_index = state.period_index
 
-                if period_index > len_rhs:  # this means there is an error
-                    sys.exit("ERROR: period_index > len_rhs")
+                if not state.is_null: # i.e. if we have not eliminated it because there is another lower-weight entry
+                    len_rhs = len(self.grammar_rules[state.rule_index].rhs)
+                    period_index = state.period_index
 
-                incomplete = period_index < len_rhs # an entry is "complete" if all rules are left of the period
+                    if period_index > len_rhs:  # this means there is an error
+                        sys.exit("ERROR: period_index > len_rhs")
 
-                if incomplete:
-                    if i_col < len(words): # predictor and scanner never run on the very last column
-                        next_cat = self.grammar_rules[state.rule_index].rhs[period_index]
-                        if next_cat == cur_word:
-                            self.scanner(state, i_col)
-                        else:
-                            self.predictor(state, i_col, next_cat, left_corners, cur_word)
-                else:  # if we are here, we have a completed item and we need to run ATTACH (a/k/a COMPLETE)
-                    self.attach(state, i_col, left_corners)
+                    incomplete = period_index < len_rhs # an entry is "complete" if all rules are left of the period
+
+                    if incomplete:
+                        if i_col < len(words): # predictor and scanner never run on the very last column
+                            next_cat = self.grammar_rules[state.rule_index].rhs[period_index]
+                            if next_cat == cur_word:
+                                self.scanner(state, i_col)
+                            else:
+                                self.predictor(state, i_col, next_cat, left_corners, cur_word)
+                    else:  # if we are here, we have a completed item and we need to run ATTACH (a/k/a COMPLETE)
+                        self.attach(state, i_col, left_corners)
 
                 i_row += 1
 
@@ -335,9 +337,7 @@ def main():
     sen_file = open(sys.argv[2])  # open .SEN file
     for sentence in sen_file:
         if len(sentence.strip()) > 0:
-            # print(datetime.datetime.now())
             parser.parse(sentence)
             parser.print()
-    # print(datetime.datetime.now())
 
 main() # starts execution
