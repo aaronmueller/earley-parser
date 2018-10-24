@@ -18,7 +18,7 @@ class GrRule:
         self.weight = -math.log(self.prob, 2)
         self.lhs = lhs
         self.rhs = rhs
-        self.rhs_has_nonterminals = False
+        self.first_rhs_is_nonterminal = False
 
     def to_string(self, index_period = -1):
         s = self.lhs + " -->"
@@ -74,34 +74,36 @@ class EarleyParser:
         self.grammar_rules = None
         self.chart = None
         self.states_added = None
+        self.dict_lhs = {}  # This is a dictionary (i.e. hashtable) of all items on the l.h.s. of a rule
 
     # Read grammar rules from an external file.
     # The rules are read into a list of GrRule.
     def read_grammar_rules(self, grammar_filename):
         self.grammar_rules = []
-        dict_lhs = {}
         with open(grammar_filename) as infile:
             for line in infile:
                 if len(line) > 2:
                     arr = line.split()
                     prob = float(arr.pop(0))
                     lhs = arr.pop(0)
-                    dict_lhs[lhs] = True # add left-hand-side string to the dictionary (i.e. hash table)
+                    self.dict_lhs[lhs] = True # add left-hand-side string to the dictionary (i.e. hash table)
                     self.grammar_rules.append(GrRule(prob, lhs, arr))
 
-        # for each rule, figure out if its right-hand-side contains any nonterminals
+        # For each rule, figure out whether its first item on the RHS is a non-terminal.
+        # This is mainly an optimization for the predictor() function, which starts with the
+        # period before the first item, which is why we care about the first item on the RHS
         for rule in self.grammar_rules:
-            for rhs_item in rule.rhs:
-                if rhs_item in dict_lhs:
-                    rule.rhs_has_nonterminals = True
+            if rule.rhs[0] in self.dict_lhs:
+                rule.first_rhs_is_nonterminal = True
 
     # This is the first operator in Earley (out of three), see J&M p.444
     # It expands a possible operator into multiple
     def predictor(self, state, i_col, next_cat, left_corners, word):
-        # The following lines implement the "Batch Duplicate check" suggested in section E.1 of HW4
+        # If the category we are trying to predict is not a possible left-hand-corner, do no more
         if next_cat not in left_corners:
             return
 
+        # The following lines implement the "Batch Duplicate check" suggested in section E.1 of HW4
         tuple_for_batch = (next_cat, i_col, "Batch Duplicate")
         if tuple_for_batch in self.states_added:
             return # do not add this batch to this column (i.e. i_col) if already added
@@ -110,7 +112,9 @@ class EarleyParser:
         # The following code performs the actual meat of predictor
         for i_rule in range(0, len(self.grammar_rules)):
             rule = self.grammar_rules[i_rule]
-            if rule.lhs == next_cat and (rule.rhs_has_nonterminals or rule.rhs[0] == word):
+            if rule.lhs == next_cat and \
+                    ((rule.first_rhs_is_nonterminal and rule.rhs[0] in left_corners) or \
+                     (not rule.first_rhs_is_nonterminal and rule.rhs[0] == word)):
                 new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
                 self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
 
