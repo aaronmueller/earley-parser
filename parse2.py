@@ -10,6 +10,8 @@ Assignment: HW4 -- Parsing
 import sys
 import numpy
 import math
+# import datetime
+
 
 # This class represents a single grammar rule read in from .GR file
 class GrRule:
@@ -76,6 +78,12 @@ class EarleyParser:
         self.states_added = None
         self.dict_lhs = {}  # This is a dictionary (i.e. hashtable) of all items on the l.h.s. of a rule
 
+    # This helper function determines whether a string is a non-terminal in the set of grammar rules we have
+    def is_nonterminal(self, string):
+        if string in self.dict_lhs:
+            return True
+        return False
+
     # Read grammar rules from an external file.
     # The rules are read into a list of GrRule.
     def read_grammar_rules(self, grammar_filename):
@@ -139,7 +147,7 @@ class EarleyParser:
 
     # This is the third operator in Earley, called "Completer" by J&M p.444
     # It goes back to PRIOR chart entries to find "customers" for a completed state
-    def attach(self, state, i_col):
+    def attach(self, state, i_col, left_corners):
         match_seeking = self.grammar_rules[state.rule_index].lhs
         icol2 = state.start_index
         for irow2 in range(0, len(self.chart[icol2])):
@@ -147,17 +155,28 @@ class EarleyParser:
             if entry2.period_index < len(self.grammar_rules[entry2.rule_index].rhs):
                 # then this may be seeking a completion
                 possible_match = self.grammar_rules[entry2.rule_index].rhs[entry2.period_index]
-                if possible_match == match_seeking:  # if this is true, we have a "customer" to "attach"
-                    weight = entry2.weight + state.weight
-                    new_entry = Entry(entry2.rule_index,
-                                      entry2.start_index,
-                                      entry2.period_index + 1,
-                                      weight)
-                    new_entry.vert_backpointer = state
-                    if entry2.period_index > 0:
-                        new_entry.horiz_backpointer = entry2
+                if possible_match == match_seeking:  # if this is true, we potentially have a "customer" to "attach"
+                    rhs_consistent = False # check whether the next part of the relevant rule is consistent
+                    rhs_length = len(self.grammar_rules[entry2.rule_index].rhs)
 
-                    self.enqueue(new_entry, i_col, "ATTACH")
+                    if entry2.period_index == (rhs_length - 1):
+                        rhs_consistent = True # r.h.s. will always be consistent if state precisely completes it
+                    elif left_corners != None: # left_corners will be None only if we are in the very last column
+                        # we need to retrieve the first item on the r.h.s. that would remain uncompleted
+                        if self.grammar_rules[entry2.rule_index].rhs[entry2.period_index+1] in left_corners:
+                            rhs_consistent = True # consistent only if the next r.h.s. rule is in left-corners
+
+                    if rhs_consistent: # if the right hand side is consistent, add the attached entry to the chart
+                        weight = entry2.weight + state.weight
+                        new_entry = Entry(entry2.rule_index,
+                                          entry2.start_index,
+                                          entry2.period_index + 1,
+                                          weight)
+                        new_entry.vert_backpointer = state
+                        if entry2.period_index > 0:
+                            new_entry.horiz_backpointer = entry2
+
+                        self.enqueue(new_entry, i_col, "ATTACH")
 
 
     # This is a crucial helper function in Earley, see J&M p.444
@@ -226,7 +245,11 @@ class EarleyParser:
 
         for i_col in range(0, len(words)+1):  # iterates over columns in Earley chart
             if i_col < len(words):
-                left_corners = self.get_left_corners(words[i_col]) # used for left-corner filter
+                cur_word = words[i_col]
+                left_corners = self.get_left_corners(cur_word) # used for left-corner filter
+            else: # then we are on the very last column
+                cur_word = None
+                left_corners = None # there is no left-corner filter on the very last column
 
             i_row = 0  # this index into chart[i] keeps track of which item remains to predict or scan
             while i_row < len(self.chart[i_col]):  # chart[i] can have additional items added during this loop
@@ -242,12 +265,12 @@ class EarleyParser:
                 if incomplete:
                     if i_col < len(words): # predictor and scanner never run on the very last column
                         next_cat = self.grammar_rules[state.rule_index].rhs[period_index]
-                        if next_cat == words[i_col]:
+                        if next_cat == cur_word:
                             self.scanner(state, i_col)
                         else:
-                            self.predictor(state, i_col, next_cat, left_corners, words[i_col])
+                            self.predictor(state, i_col, next_cat, left_corners, cur_word)
                 else:  # if we are here, we have a completed item and we need to run ATTACH (a/k/a COMPLETE)
-                    self.attach(state, i_col)
+                    self.attach(state, i_col, left_corners)
 
                 i_row += 1
 
@@ -312,7 +335,9 @@ def main():
     sen_file = open(sys.argv[2])  # open .SEN file
     for sentence in sen_file:
         if len(sentence.strip()) > 0:
+            # print(datetime.datetime.now())
             parser.parse(sentence)
             parser.print()
+    # print(datetime.datetime.now())
 
 main() # starts execution
