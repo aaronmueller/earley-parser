@@ -18,6 +18,7 @@ class GrRule:
         self.weight = -math.log(self.prob, 2)
         self.lhs = lhs
         self.rhs = rhs
+        self.rhs_has_nonterminals = False
 
     def to_string(self, index_period = -1):
         s = self.lhs + " -->"
@@ -71,7 +72,6 @@ class Entry:
 class EarleyParser:
     def __init__(self):
         self.grammar_rules = None
-        self.num_rules = -1
         self.chart = None
         self.states_added = None
 
@@ -79,18 +79,25 @@ class EarleyParser:
     # The rules are read into a list of GrRule.
     def read_grammar_rules(self, grammar_filename):
         self.grammar_rules = []
+        dict_lhs = {}
         with open(grammar_filename) as infile:
             for line in infile:
                 if len(line) > 2:
                     arr = line.split()
                     prob = float(arr.pop(0))
                     lhs = arr.pop(0)
+                    dict_lhs[lhs] = True # add left-hand-side string to the dictionary (i.e. hash table)
                     self.grammar_rules.append(GrRule(prob, lhs, arr))
-        self.num_rules = len(self.grammar_rules)
+
+        # for each rule, figure out if its right-hand-side contains any nonterminals
+        for rule in self.grammar_rules:
+            for rhs_item in rule.rhs:
+                if rhs_item in dict_lhs:
+                    rule.rhs_has_nonterminals = True
 
     # This is the first operator in Earley (out of three), see J&M p.444
     # It expands a possible operator into multiple
-    def predictor(self, state, i_col, next_cat, left_corners):
+    def predictor(self, state, i_col, next_cat, left_corners, word):
         # The following lines implement the "Batch Duplicate check" suggested in section E.1 of HW4
         if next_cat not in left_corners:
             return
@@ -102,7 +109,8 @@ class EarleyParser:
 
         # The following code performs the actual meat of predictor
         for i_rule in range(0, len(self.grammar_rules)):
-            if self.grammar_rules[i_rule].lhs == next_cat:
+            rule = self.grammar_rules[i_rule]
+            if rule.lhs == next_cat and (rule.rhs_has_nonterminals or rule.rhs[0] == word):
                 new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
                 self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
 
@@ -233,7 +241,7 @@ class EarleyParser:
                         if next_cat == words[i_col]:
                             self.scanner(state, i_col)
                         else:
-                            self.predictor(state, i_col, next_cat, left_corners)
+                            self.predictor(state, i_col, next_cat, left_corners, words[i_col])
                 else:  # if we are here, we have a completed item and we need to run ATTACH (a/k/a COMPLETE)
                     self.attach(state, i_col)
 
