@@ -92,17 +92,20 @@ class EarleyParser:
     # It expands a possible operator into multiple
     def predictor(self, state, i_col, next_cat, left_corners):
         # The following lines implement the "Batch Duplicate check" suggested in section E.1 of HW4
+        if next_cat not in left_corners:
+            return
+
         tuple_for_batch = (next_cat, i_col, "Batch Duplicate")
         if tuple_for_batch in self.states_added:
             return # do not add this batch to this column (i.e. i_col) if already added
         self.states_added[tuple_for_batch] = True # add to prevent future re-adding
 
         # The following code performs the actual meat of predictor
+        next_cat
         for i_rule in range(0, len(self.grammar_rules)):
-            if self.grammar_rules[i_rule].lhs in left_corners:
-                if self.grammar_rules[i_rule].lhs == next_cat:
-                    new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
-                    self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
+            if self.grammar_rules[i_rule].lhs == next_cat:
+                new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
+                self.enqueue(new_entry, i_col, "PREDICTOR") # attempt to add new state, if not already added
 
 
     # This is the second operator in Earley (out of three), see J&M p.444
