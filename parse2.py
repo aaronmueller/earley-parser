@@ -101,7 +101,6 @@ class EarleyParser:
         self.states_added[tuple_for_batch] = True # add to prevent future re-adding
 
         # The following code performs the actual meat of predictor
-        next_cat
         for i_rule in range(0, len(self.grammar_rules)):
             if self.grammar_rules[i_rule].lhs == next_cat:
                 new_entry = Entry(i_rule, i_col, 0, self.grammar_rules[i_rule].weight)
